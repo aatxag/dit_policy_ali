@@ -12,6 +12,7 @@ import torch
 import tqdm
 from omegaconf import DictConfig, OmegaConf
 
+import wandb
 import hydra
 from data4robotics import misc, transforms
 
@@ -88,6 +89,8 @@ def bc_finetune(cfg: DictConfig):
             trainer.optim.step()
 
             pbar.set_postfix(dict(Loss=loss.item()))
+            if wandb.run is not None:
+                wandb.log({"train/task_loss": loss.item()}, step=misc.GLOBAL_STEP)
             misc.GLOBAL_STEP += 1
 
             if misc.GLOBAL_STEP % cfg.schedule_freq == 0:

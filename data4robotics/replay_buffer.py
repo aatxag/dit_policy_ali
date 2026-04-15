@@ -13,7 +13,15 @@ import numpy as np
 import torch
 import tqdm
 from robobuf import ReplayBuffer as RB
-from tensorflow.io import gfile
+try:
+    from tensorflow.io import gfile
+except ImportError:
+    class _GFileFallback:
+        @staticmethod
+        def GFile(path, mode):
+            return open(path, mode)
+
+    gfile = _GFileFallback()
 from torch.utils.data import Dataset, IterableDataset
 
 # cache loading from the buffer list to half memory overhead
