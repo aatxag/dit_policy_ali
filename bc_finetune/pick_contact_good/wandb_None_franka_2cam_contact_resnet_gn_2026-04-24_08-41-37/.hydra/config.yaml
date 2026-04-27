@@ -1,1 +1,103 @@
+agent:
+  features:
+    _target_: data4robotics.models.resnet.ResNet
+    size: 18
+    weights: IMAGENET1K_V1
+    restore_path: /home/labiiwa/dit-policy/visual_features/resnet18/IN_1M_resnet18.pth
+    avg_pool: true
+    norm_cfg:
+      name: group_norm
+      num_groups: 16
+  _target_: data4robotics.models.diffusion_contact.DiffusionTransformerAgent
+  odim: ${task.obs_dim}
+  n_cams: ${task.n_cams}
+  use_obs: add_token
+  dropout: 0.1
+  train_diffusion_steps: 100
+  eval_diffusion_steps: 8
+  ac_dim: ${task.ac_dim}
+  ac_chunk: ${ac_chunk}
+  imgs_per_cam: ${add:${img_chunk},${len:${task.train_buffer.goal_indexes}}}
+  share_cam_features: false
+  early_fusion: false
+  feat_norm: null
+  noise_net_kwargs:
+    time_dim: 256
+    hidden_dim: 512
+    num_blocks: 6
+    dim_feedforward: 2048
+    dropout: ${agent.dropout}
+    nhead: 8
+    activation: gelu
+task:
+  _target_: data4robotics.task_contact.BCTaskContact
+  obs_dim: 8
+  ac_dim: 8
+  n_cams: ${len:${task.train_buffer.cam_indexes}}
+  train_buffer:
+    _target_: data4robotics.replay_buffer_contact.RobobufReplayBuffer
+    buffer_path: ${buffer_path}
+    transform: ${transform:${train_transform}}
+    n_test_trans: 800
+    ac_chunk: ${ac_chunk}
+    mode: train
+    cam_indexes:
+    - 0
+    - 1
+    goal_indexes: []
+    past_frames: ${add:${img_chunk},-1}
+    ac_dim: ${task.ac_dim}
+  test_buffer:
+    _target_: data4robotics.replay_buffer_contact.RobobufReplayBuffer
+    buffer_path: ${buffer_path}
+    transform: ${transform:preproc}
+    n_test_trans: 500
+    ac_chunk: ${ac_chunk}
+    mode: test
+    cam_indexes: ${task.train_buffer.cam_indexes}
+    goal_indexes: ${task.train_buffer.goal_indexes}
+    past_frames: ${add:${img_chunk},-1}
+    ac_dim: ${task.ac_dim}
+trainer:
+  _target_: data4robotics.trainers.bc_contact.BehaviorCloning
+  optim_builder:
+    _target_: data4robotics.trainers.utils.optim_builder
+    optimizer_type: AdamW
+    optimizer_kwargs:
+      lr: ${lr}
+      betas:
+      - 0.95
+      - 0.999
+      weight_decay: 1.0e-06
+      eps: 1.0e-08
+  schedule_builder:
+    _target_: data4robotics.trainers.utils.schedule_builder
+    schedule_type: cosine
+    from_diffusers: true
+    schedule_kwargs:
+      num_warmup_steps: 500
+      num_training_steps: ${max_iterations}
+rt: ${hydra:runtime.choices.agent/features}
+exp_name: pick_orange_contact
+checkpoint_path: ${exp_name}.ckpt
+batch_size: 128
+num_workers: 2
+lr: 0.0003
+max_iterations: 8000
+eval_freq: 500
+save_freq: 500
+schedule_freq: 1
+devices: 1
+seed: 292285
+buffer_path: /home/labiiwa/dit-policy/my_data/pick_orange_contact/buf.pkl
+ac_chunk: 8
+img_chunk: 1
+train_transform: preproc
+wandb:
+  name: null
+  project: dit-policy
+  group: ${exp_name}
+  sweep_name_prefix: eval
+  debug: false
+  entity: aatxag-mondragon-university
 
